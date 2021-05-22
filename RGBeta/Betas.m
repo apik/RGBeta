@@ -15,6 +15,7 @@ PackageExport["BetaTerm"]
 PackageExport["CheckProjection"]
 PackageExport["Finalize"]
 PackageExport["QuarticBetaFunctions"]
+PackageExport["QuarticMatrix"]
 PackageExport["CheckQuarticMixing"]
 
 PackageScope["AntiSym"]
@@ -44,7 +45,8 @@ Finalize::usage =
 	"Finalize[expr] performs additional refinement of beta function expressions. Only works for expressions with up to 2 nontrivial flavor indices."
 QuarticBetaFunctions::usage =
 	"QuarticBetaFunctions[loop] returns all quartic beta functions to the given loop order using diagonalized projectors."
-
+QuarticMatrix::usage =
+"QuarticMatrix[] return matrix for diagonalized projectors."
 AntiSym::usage =
 	"AntiSym[a, b][expr] is an internal function for antisymmetrizing expr in a and b."
 ResetBetas::usage =
@@ -128,15 +130,16 @@ Tdot[a_] = a;
 (*##################################*)
 
 (*Function returns the l-loop contribution to the beta function of a given coupling*)
+Options[BetaTerm] = {SumTerms -> True};
 BetaTerm::loopNumber = "The `1` beta function has only been implemented up to `2` loops."
 BetaTerm::unkown = "The coupling `1` has not been defined."
-BetaTerm[coupling_, loop_Integer] :=
+BetaTerm[coupling_, loop_Integer, OptionsPattern[] ] :=
 	Module[{beta, group, tensor, C1, C2},
 		(*Determines the correct tensor structure based on coupling type*)
 		Switch[$couplings @ coupling
 		,x_ /; MemberQ[Keys @ $gaugeGroups, x],
-			If[loop > 3 || loop < 0,
-				Message[BetaTerm::loopNumber, "gauge", 3];
+			If[loop > 4 || loop < 0,
+				Message[BetaTerm::loopNumber, "gauge", 4];
 				Abort[];
 			];
 			group = $couplings @ coupling;
@@ -148,8 +151,8 @@ BetaTerm[coupling_, loop_Integer] :=
 					Matrix[mat_][group[adj] @ v1, group[adj] @ v2] /; MatrixQ @ mat :> mat};
 			];
 		,Yukawa,
-			If[loop > 2 || loop < 0,
-				Message[BetaTerm::loopNumber, "Yukawa", 2];
+			If[loop > 3 || loop < 0,
+				Message[BetaTerm::loopNumber, "Yukawa", 3];
 				Abort[];
 			];
 			beta = YukawaTensors[coupling, loop] /. $yukawaCoefficients // Expand;
@@ -192,9 +195,13 @@ BetaTerm[coupling_, loop_Integer] :=
 		];
 
 		(*Canonically order coupling indices if any*)
-		CanonizeMatrices @ beta
-		(* CanonizeMatrices @ RefineGroupStructures @ beta *)
+    If[OptionValue[SumTerms],
+       Plus @@ (CanonizeMatrices /@ beta),
+       (CanonizeMatrices /@ beta)
+    ]
 	];
+
+
 
 (*Function that produces the beta function for the requested coupling*)
 Options[BetaFunction] = {RescaledCouplings -> False, FourDimensions -> True};
@@ -271,6 +278,29 @@ QuarticBetaFunctions[loop_Integer, opt:OptionsPattern[]] ? OptionsCheck :=
 						,StringForm["Evaluating the `` \[Beta]-function", c] ];
 
 		invMatrix . betaFunctions // Expand
+	];
+
+(*Fuction for diagonalizing the quartic beta functions. Returns couplings vector and mixing matrix.*)
+QuarticMatrix[]:=
+	Module[{betaFunctions, couplings, qProjections, invMatrix, c},
+
+		couplings = Keys @ $quartics;
+		Print["The quartic couplings are ", couplings];
+
+		(*Finds inversion matrix for the quartic projectors*)
+		qProjections = CheckProjection /@ couplings;
+		invMatrix = Transpose @ Table[Simplify @ D[qProjections, c], {c, couplings}];
+		If[Det @ invMatrix === 0,
+			Message[QuarticBetaFunctions::singular];
+			Abort[];
+		];
+		invMatrix = Inverse @ invMatrix;
+
+    invMatrix = If[FreeQ[$gaugeGroups, Arb],
+                   invMatrix,
+                   MapAt[Function[{num, den}, Color[num]/Color[den]][Sequence @@ NumeratorDenominator[#]] &, invMatrix, {All, All}]
+                ];
+		{couplings, invMatrix}
 	];
 
 (*Function returns the l-loop contribution to the beta function of a given coupling*)

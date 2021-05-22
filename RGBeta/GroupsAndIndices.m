@@ -24,6 +24,7 @@ PackageExport["SO"]
 PackageExport["Sp"]
 PackageExport["SU"]
 PackageExport["U1"]
+PackageExport["Arb"]
 
 PackageExport["adj"]
 PackageExport["fund"]
@@ -32,6 +33,7 @@ PackageExport["S2"]
 
 PackageExport["Bar"]
 PackageExport["DefineLieGroup"]
+PackageExport["DefineArbGroup"]
 PackageExport["Matrix"]
 PackageExport["SetReal"]
 PackageExport["Tensor"]
@@ -40,6 +42,12 @@ PackageExport["Trans"]
 PackageScope["RefineGroupStructures"]
 PackageScope["ReInitializeSymbols"]
 PackageScope["TStructure"]
+
+PackageExport["NR"]
+PackageExport["NA"]
+PackageExport["CF"]
+PackageExport["CA"]
+PackageExport["TF"]
 
 (*#####################################*)
 (*----------Usage Definitions----------*)
@@ -64,13 +72,15 @@ tGen::usage =
 
 adj::usage = fund::usage = S2::usage = A2::usage =
 	"Representation name defined defined by the Define(SO/Sp/SU)Group functions."
-SO::usage = Sp::usage = SU::usage = U1::usage =
-	"SO, Sp, SU, and U1 are used to specify different Lie groups."
+SO::usage = Sp::usage = SU::usage = U1::usage = Arb::usage =
+	"SO, Sp, SU, U1 and Arb are used to specify different Lie groups."
 
 Bar::usage =
 	"Bar[x] rerpresents the conjugate of x. Used both for fields, couplings, and representations."
 DefineLieGroup::usage =
 	"DefineLieGroup[groupName, lieGroup[n]] sets groupName to be a lie group of type SU(n), SO(n), Sp(n), or U(1)^n and defines invariants for several common representations of said group."
+DefineArbGroup::usage =
+"DefineArbGroup[groupName] sets groupName to be a general lie group and defines invariants for several common representations of said group."
 Matrix::usage =
 	"Matrix[x,...][i, j] represents the matrix product of couplings x,... with open indices i and j."
 SetReal::usage =
@@ -87,6 +97,21 @@ Dim::usage =
 TraceNormalization::usage =
 	"TraceNormalization[rep] sets the trace normalization of a given representation."
 
+(* Arb group *)
+NR::usage =
+"NR[G]"
+
+NA::usage =
+"NA[G]"
+
+TF::usage =
+"TF[G]"
+
+CF::usage =
+"CF[G]"
+
+CA::usage =
+"CA[G]"
 
 RefineGroupStructures::usage =
 	"RefineGroupStructures[expr] decomposes generators of non-fundamental representations of the groups to the fundamental ones, whereby identities can be applied."
@@ -120,7 +145,7 @@ ReInitializeSymbols[] :=
 
 		(*del[rep, a, b] is the symbol for Kronecker delta \delta_{a,b} belong to the indices specified by the representation.*)
 		Clear @ del;
-		del[rep_, a_, b_] /; !OrderedQ@ {a, b}:= del[rep, b, a];  
+    del[rep_, a_, b_] /; !OrderedQ@ {a, b}:= del[rep, b, a];
 		(* del /: del[rep_, a___, x_, b___] del[rep_, c___, x_, d___] := del[rep, c, a, b, d]; *)
 		del /: del[rep_, OrderlessPatternSequence[x_, a_]] del[rep_, OrderlessPatternSequence[x_, b_]] := del[rep, a, b];
 		del /: Power[del[rep_, a_, b_], 2] := Dim[rep];
@@ -330,6 +355,23 @@ DefineLieGroup[groupName_Symbol, lieGroup_Symbol[n_Integer|n_Symbol] ] :=
 			Message[DefineLieGroup::unkown, lieGroup[n] ];
 			Return @ $Failed;
 		];
+	];
+
+(*Initialization for an Arbitrary Lie group.*)
+DefineArbGroup[group_Symbol] :=
+	Module[{},
+		(*Fundamental*)
+		Dim[group[fund]] = NR[group];
+		TraceNormalization[group[fund]] = TF[group];
+		Casimir2[group[fund]] = CF[group];
+		(*Fierz identitiy*)
+		(* tGen /: tGen[group[fund], A_, a_, b_] tGen[group[fund], A_, c_, d_] = TraceNormalization[group[fund]] * *)
+		(* 	(del[group[fund], a, d] del[group[fund], c, b] - del[group[fund], a, b] del[group[fund], c, d] / n); *)
+
+		(*Adjoint*)
+		Dim[group[adj]] = NA[group];
+		TraceNormalization[group[adj]] = CA[group];
+		Casimir2[group[adj]] = CA[group];
 	];
 
 (*Initialization for an SO(n) gauge group.*)

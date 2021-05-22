@@ -11,6 +11,7 @@ Package["RGBeta`"]
 PackageExport["AddFermion"]
 PackageExport["AddFermionMass"]
 PackageExport["AddGaugeGroup"]
+PackageExport["AddGaugeGroupArb"]
 PackageExport["AddQuartic"]
 PackageExport["AddScalar"]
 PackageExport["AddScalarMass"]
@@ -54,6 +55,8 @@ AddFermionMass::ussage =
 	"AddFermionMass[mass, {ferm1, ferm2}] defines a mass term between the two fermion fields."
 AddGaugeGroup::usage =
 	"AddGaugeGroup[coupling, groupName, lieGroup[n]] is a function used to define a gauge group in the model."
+AddGaugeGroupArb::usage =
+"AddGaugeGroupArb[coupling, groupName] is a function used to define general gauge group in the model."
 AddQuartic::usage =
 	"AddQuartic[coupling, {scal1, scal2, scal3, scal4}] defines a quartic interaction between 4 scalar fields."
 AddScalar::usage =
@@ -201,6 +204,10 @@ UpdateProjectors[coupling_] :=
 			(* Determines the correct symmetry factor *)
 			symmetryFactor = ReplaceAll[Rule[#, 0] & /@ Keys @ $quartics] @ RefineGroupStructures[
 				projector[$a, $b, $c, $d] Lam[$a, $b, $c, $d]  /. (Matrix|Tensor)[x_][__] -> x /. coupling -> 1 ] // Simplify;
+      symmetryFactor = If[MemberQ[$gaugeGroups, Arb, -1],
+                          Color[symmetryFactor],
+                          symmetryFactor
+                       ];
 			If[symmetryFactor === 0,
 				Message[UpdateProjectors::projection0, coupling];
 				KeyDropFrom[$quartics, coupling];
@@ -474,6 +481,25 @@ AddGaugeGroup[coupling_Symbol, groupName_Symbol, lieGroup_Symbol[n_Integer|n_Sym
 		ResetBetas[];
 	];
 
+(*Function for adding general gauge groups to the model*)
+AddGaugeGroupArb[coupling_Symbol, groupName_Symbol] :=
+	Module[{cMatrix, invalid, projector, fieldName},
+		DefineArbGroup[groupName];
+		fieldName = "A_" <> ToString @ groupName;
+
+		(*Adds the group information and the coupling to the repsective lists*)
+		AppendTo[$gaugeGroups, groupName ->
+			<|Coupling -> coupling,
+			Field -> fieldName,
+			LieGroup -> Arb|>];
+		AppendTo[$couplings, coupling -> groupName];
+
+		(* The construction of the projector of the coupling has been relegated to UpdateFieldIndexMap[] *)
+		UpdateFieldIndexMap[];
+		UpdateProjectors[$gaugeGroups[#, Coupling] & /@ Keys@ $gaugeGroups];
+		ResetBetas[];
+	];
+
 (*Checks the validity of a given representation. Returns True iff rep is valid given gauge groups
  of the present model*)
 RepresentationCheck::invalid = "`1` is not a reckognized format for a representation.";
@@ -489,6 +515,11 @@ RepresentationCheck[rep_] :=
 		gName = Head@ If[Head@ rep === Bar, rep[[1]], rep];
 		group = $gaugeGroups[gName, LieGroup];
 		Switch[group
+		,Arb,
+      (* Only fundamental and adjoint representations for Arb group *)
+			If[MemberQ[Join[gName/@{fund, adj}, Bar/@ gName/@ {fund}], rep],
+				Return @ True;
+			];
 		,SU[_],
 			If[MemberQ[Join[gName/@{fund, adj, S2, A2}, Bar/@ gName/@ {fund, S2, A2}], rep],
 				Return @ True;
