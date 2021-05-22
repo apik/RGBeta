@@ -1,4 +1,4 @@
-AppendTo[$Path, "../../RGBetaArbG"];
+AppendTo[$Path, "../"];
 << RGBeta`;
 
 ResetModel[]
